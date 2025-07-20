@@ -17,7 +17,7 @@ public class StockControllerTests
     {
         _testData = LoadTestData();
     }
-
+    // Load test data from a JSON file
     private List<StockData> LoadTestData()
     {
         var json = File.ReadAllText("test_stocks.json");
@@ -27,6 +27,7 @@ public class StockControllerTests
         }) ?? throw new InvalidOperationException("Test data file 'test_stocks.json' could not be loaded.");
     }
 
+    // Setup the controller with mock services
     private StockController SetupController(
         List<StockData>? data = null,
         List<string>? cachedTickers = null,
@@ -42,6 +43,7 @@ public class StockControllerTests
         return new StockController(mockService.Object, mockCache.Object);
     }
 
+    // Tests for the StockController
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_WhenCacheIsEmpty()
     {
@@ -56,6 +58,7 @@ public class StockControllerTests
         Assert.Equal(3, tickers.Count);
     }
 
+    // Test to ensure that the controller returns tickers from cache if available
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_FromCache()
     {
@@ -67,6 +70,7 @@ public class StockControllerTests
         Assert.Equal(3, tickers.Count);
     }
 
+    // Test to ensure that the controller returns ticker details correctly
     [Fact]
     public async Task GetTickerDetails_ShouldReturnCorrectDetails()
     {
@@ -80,6 +84,7 @@ public class StockControllerTests
         Assert.Equal(202.30m, stock.Close);
     }
 
+    // Test to ensure that the controller returns NotFound when ticker does not exist
     [Fact]
     public async Task GetTickerDetails_ShouldReturnNotFound_WhenTickerDoesNotExist()
     {
@@ -90,7 +95,8 @@ public class StockControllerTests
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         Assert.Equal("Ticker 'UnknownTicker' not found.", notFound.Value);
     }
-
+    
+    // Test to ensure that the controller returns buying option with correct share count
     [Fact]
     public async Task GetBuyingOption_ShouldReturnCorrectShareCount()
     {
@@ -108,6 +114,7 @@ public class StockControllerTests
         Assert.Equal("4", parsed?["Shares"]?.ToString());
     }
 
+    // Test to ensure that the controller returns NotFound when ticker does not exist for buying option
     [Fact]
     public async Task GetBuyingOption_ShouldReturnNotFound_WhenTickerDoesNotExist()
     {
@@ -119,6 +126,7 @@ public class StockControllerTests
         Assert.Equal("Ticker 'XYZ' not found.", notFound.Value);
     }
 
+    // Test to ensure that the controller returns BadRequest when budget is invalid
     [Theory]
     [InlineData(0)]
     [InlineData(-100)]
