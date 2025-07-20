@@ -47,7 +47,10 @@ public class StockController : ControllerBase
             return NotFound("No stock data available.");
 
         StockData? result = data.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
-            
+
+        if (result == null)
+            return NotFound($"Ticker '{ticker}' not found.");
+
         await _stockCache.SetStockAsync(ticker, result);
         return Ok(result);
     }

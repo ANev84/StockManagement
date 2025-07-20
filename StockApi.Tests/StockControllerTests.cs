@@ -129,4 +129,75 @@ public class StockControllerTests
         Assert.Contains("GOOGL", tickers);
         Assert.Equal(3, tickers.Count);
     }
+
+    // Test to ensure that GetTickerDetails returns NotFound when ticker does not exist
+    [Fact]
+    public async Task GetTickerDetails_ShouldReturnNotFound_WhenTickerNotExists()
+    {
+        // Arrange        
+        var data = LoadTestData();
+
+        var mockService = new Mock<IStockDataService>();
+        mockService.Setup(s => s.GetAll()).Returns(data);
+
+        var mockCache = new Mock<IStockCacheService>();
+        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null);
+
+        var controller = new StockController(mockService.Object, mockCache.Object);
+
+        // Act
+        var result = await controller.GetTickerDetails("NoTickerName");
+
+        // Assert
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Ticker 'NoTickerName' not found.", notFoundResult.Value);
+    }
+
+    // Test to ensure that GetBuyingOption returns NotFound when ticker does not exist
+    [Fact]
+    public async Task GetBuyingOption_ShouldReturnNotFound_WhenTickerNotExists()
+    {
+        // Arrange
+        var data = LoadTestData();
+
+        var mockService = new Mock<IStockDataService>();
+        mockService.Setup(s => s.GetAll()).Returns(data);
+
+        var mockCache = new Mock<IStockCacheService>();
+        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null);
+
+        var controller = new StockController(mockService.Object, mockCache.Object);
+
+        // Act
+        var result = await controller.GetBuyingOption("NoTickerName", 1000);
+
+        // Assert
+        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Ticker 'NoTickerName' not found.", notFoundResult.Value);
+    }
+
+    // Test to ensure that GetBuyingOption returns BadRequest when budget is zero or negative
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-100)]
+    public async Task GetBuyingOption_ShouldReturnBadRequest_WhenBudgetIsZeroOrNegative(decimal invalidBudget)
+    {
+        // Arrange
+        var ticker = "AAPL";
+
+        var mockService = new Mock<IStockDataService>();
+        mockService.Setup(s => s.GetAll()).Returns(new List<StockData>());
+
+        var mockCache = new Mock<IStockCacheService>();
+        mockCache.Setup(c => c.GetStockAsync(ticker)).ReturnsAsync((StockData?)null);
+
+        var controller = new StockController(mockService.Object, mockCache.Object);
+
+        // Act
+        var result = await controller.GetBuyingOption(ticker, invalidBudget);
+
+        // Assert
+        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Budget must be greater than zero.", badRequestResult.Value);
+    }
 }
