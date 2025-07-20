@@ -183,18 +183,13 @@ public class StockControllerTests
     public async Task GetBuyingOption_ShouldReturnBadRequest_WhenBudgetIsZeroOrNegative(decimal invalidBudget)
     {
         // Arrange
-        var ticker = "AAPL";
-
         var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(new List<StockData>());
-
         var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(c => c.GetStockAsync(ticker)).ReturnsAsync((StockData?)null);
 
         var controller = new StockController(mockService.Object, mockCache.Object);
 
         // Act
-        var result = await controller.GetBuyingOption(ticker, invalidBudget);
+        var result = await controller.GetBuyingOption("AAPL", invalidBudget);
 
         // Assert
         var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
