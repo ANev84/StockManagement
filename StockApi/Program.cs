@@ -11,13 +11,23 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IStockDataService, FileStockDataService>();
-builder.Services.AddScoped<IStockCacheService, StockCacheService>();
 
 // Redis configuration as a distributed cache
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("Redis");
     options.InstanceName = "StockApi_";
+});
+
+// Temporary provider
+builder.Services.AddSingleton<InMemoryStockCacheService>();
+builder.Services.AddSingleton<CacheServiceFactory>();
+
+// IStockCacheService created through a factory
+builder.Services.AddSingleton(sp =>
+{
+    var factory = sp.GetRequiredService<CacheServiceFactory>();
+    return factory.CreateAsync().GetAwaiter().GetResult();
 });
 
 var app = builder.Build();
