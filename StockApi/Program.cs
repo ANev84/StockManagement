@@ -1,4 +1,5 @@
 using StockApi.StockDataService;
+using StockApi.StockDataService.Cache;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IStockDataService, FileStockDataService>();
+builder.Services.AddScoped<IStockCacheService, StockCacheService>();
+
+// Redis configuration as a distributed cache
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("Redis");
+    options.InstanceName = "StockApi_";
+});
 
 var app = builder.Build();
 

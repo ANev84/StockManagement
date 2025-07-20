@@ -1,7 +1,9 @@
 ﻿namespace StockApi.Controllers;
 
 using Microsoft.AspNetCore.Mvc;
+using StockApi.Models;
 using StockApi.StockDataService;
+using StockApi.StockDataService.Cache;
 using System;
 using System.Linq;
 
@@ -11,57 +13,74 @@ using System.Linq;
 public class StockController : ControllerBase
 {
     private readonly IStockDataService _stockService;
+    private readonly IStockCacheService _stockCache;
 
-    public StockController(IStockDataService stockService)
+    public StockController(IStockDataService stockService, IStockCacheService stockCache)
     {
         _stockService = stockService;
+        _stockCache = stockCache;
     }
 
     [HttpGet("tickers")]
-    public IActionResult GetAllTickers()
+    public virtual async Task<IActionResult> GetAllTickers()
     {
+        var cachedTickers = await _stockCache.GetAllTickersAsync();
+        if (cachedTickers != null)
+            return Ok(cachedTickers);
+
         var data = _stockService.GetAll();
         var tickers = data.Select(s => s.Ticker).Distinct().ToList();
+
+        await _stockCache.SetAllTickersAsync(tickers);
         return Ok(tickers);
     }
 
     [HttpGet("{ticker}")]
-    public IActionResult GetTickerDetails(string ticker)
+    public async Task<IActionResult> GetTickerDetails(string ticker)
     {
+        var cached = await _stockCache.GetStockAsync(ticker);
+        if (cached != null)
+            return Ok(cached);
+
         var data = _stockService.GetAll();
-        var result = data
-            .Where(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(s => s.Date)
-            .ToList();
+        if (data == null || !data.Any())
+            return NotFound("No stock data available.");
 
-        if (!result.Any())
-            return NotFound();
-
+        StockData? result = data.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
+            
+        await _stockCache.SetStockAsync(ticker, result);
         return Ok(result);
     }
 
     [HttpGet("{ticker}/buy")]
-    public IActionResult GetBuyingOption(string ticker, [FromQuery] decimal budget)
+    public async Task<IActionResult> GetBuyingOption(string ticker, [FromQuery] decimal budget)
     {
         if (budget <= 0)
             return BadRequest("Budget must be greater than zero.");
 
-        var data = _stockService.GetAll();
-        var latest = data
-            .Where(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(s => s.Date)
-            .FirstOrDefault();
+        var cached = await _stockCache.GetStockAsync(ticker);
+        StockData? latest = null;
+        if (cached != null) {
+            latest = cached;
+        }            
+        else
+        {
+            var dataFromFile = _stockService.GetAll();
 
-        if (latest == null)
-            return NotFound();
+            if (dataFromFile == null || !dataFromFile.Any())
+                return NotFound("No stock data available.");
+
+            latest = dataFromFile.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        if(latest == null)
+            return NotFound($"Ticker '{ticker}' not found.");
 
         var shares = Math.Floor(budget / latest.Close);
 
         return Ok(new
         {
-            Ticker = latest.Ticker,
-            Date = latest.Date.ToString("yyyy-MM-dd"),
-            ClosePrice = latest.Close,
+            latest.Ticker,           
             Budget = budget,
             Shares = shares
         });
