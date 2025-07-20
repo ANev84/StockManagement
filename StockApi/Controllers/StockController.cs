@@ -24,35 +24,29 @@ public class StockController : ControllerBase
     [HttpGet("tickers")]
     public virtual async Task<IActionResult> GetAllTickers()
     {
-        var cachedTickers = await _stockCache.GetAllTickersAsync();
-        if (cachedTickers != null)
-            return Ok(cachedTickers);
+        var tickers = await _stockCache.GetAllTickersAsync();
+        if (tickers == null)
+        {
+            tickers = _stockService
+                .GetAll()
+                .Select(s => s.Ticker)
+                .Distinct()
+                .ToList();
 
-        var data = _stockService.GetAll();
-        var tickers = data.Select(s => s.Ticker).Distinct().ToList();
+            await _stockCache.SetAllTickersAsync(tickers);
+        }
 
-        await _stockCache.SetAllTickersAsync(tickers);
         return Ok(tickers);
     }
 
     [HttpGet("{ticker}")]
     public async Task<IActionResult> GetTickerDetails(string ticker)
     {
-        var cached = await _stockCache.GetStockAsync(ticker);
-        if (cached != null)
-            return Ok(cached);
-
-        var data = _stockService.GetAll();
-        if (data == null || !data.Any())
-            return NotFound("No stock data available.");
-
-        StockData? result = data.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
-
-        if (result == null)
+        var stock = await GetOrLoadStockAsync(ticker);
+        if (stock == null)
             return NotFound($"Ticker '{ticker}' not found.");
 
-        await _stockCache.SetStockAsync(ticker, result);
-        return Ok(result);
+        return Ok(stock);
     }
 
     [HttpGet("{ticker}/buy")]
@@ -61,31 +55,37 @@ public class StockController : ControllerBase
         if (budget <= 0)
             return BadRequest("Budget must be greater than zero.");
 
-        var cached = await _stockCache.GetStockAsync(ticker);
-        StockData? latest = null;
-        if (cached != null) {
-            latest = cached;
-        }            
-        else
-        {
-            var dataFromFile = _stockService.GetAll();
-
-            if (dataFromFile == null || !dataFromFile.Any())
-                return NotFound("No stock data available.");
-
-            latest = dataFromFile.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
-        }
-        
-        if(latest == null)
+        var stock = await GetOrLoadStockAsync(ticker);
+        if (stock == null)
             return NotFound($"Ticker '{ticker}' not found.");
 
-        var shares = Math.Floor(budget / latest.Close);
+        var shares = Math.Floor(budget / stock.Close);
 
         return Ok(new
         {
-            latest.Ticker,           
+            stock.Ticker,
             Budget = budget,
             Shares = shares
         });
+    }
+
+    /// <summary>
+    /// Get stock from cache or download from source and save to cache
+    /// </summary>
+    private async Task<StockData?> GetOrLoadStockAsync(string ticker)
+    {
+        var cached = await _stockCache.GetStockAsync(ticker);
+        if (cached != null)
+            return cached;
+
+        var data = _stockService.GetAll();
+        if (data == null || !data.Any())
+            return null;
+
+        var stock = data.FirstOrDefault(s => s.Ticker.Equals(ticker, StringComparison.OrdinalIgnoreCase));
+        if (stock != null)
+            await _stockCache.SetStockAsync(ticker, stock);
+
+        return stock;
     }
 }

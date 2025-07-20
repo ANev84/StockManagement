@@ -5,194 +5,130 @@ using StockApi.Models;
 using StockApi.StockDataService;
 using StockApi.StockDataService.Cache;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 
 public class StockControllerTests
 {
+    private const string Aapl = "AAPL";
+    private readonly List<StockData> _testData;
+
+    public StockControllerTests()
+    {
+        _testData = LoadTestData();
+    }
+
     private List<StockData> LoadTestData()
     {
         var json = File.ReadAllText("test_stocks.json");
-        var testData =  JsonSerializer.Deserialize<List<StockData>>(json, new JsonSerializerOptions
+        return JsonSerializer.Deserialize<List<StockData>>(json, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
-        });
-        if (testData == null)
-        {
-            throw new InvalidOperationException("Test data file 'test_stocks.json' could not be loaded.");
-        }
-        return testData;
+        }) ?? throw new InvalidOperationException("Test data file 'test_stocks.json' could not be loaded.");
+    }
+
+    private StockController SetupController(
+        List<StockData>? data = null,
+        List<string>? cachedTickers = null,
+        StockData? cachedStock = null)
+    {
+        var mockService = new Mock<IStockDataService>();
+        mockService.Setup(s => s.GetAll()).Returns(data ?? _testData);
+
+        var mockCache = new Mock<IStockCacheService>();
+        mockCache.Setup(c => c.GetAllTickersAsync()).ReturnsAsync(cachedTickers);
+        mockCache.Setup(c => c.GetStockAsync(It.IsAny<string>())).ReturnsAsync(cachedStock);
+
+        return new StockController(mockService.Object, mockCache.Object);
     }
 
     [Fact]
-    public async void GetAllTickers_ShouldReturnListOfTickers()
+    public async Task GetAllTickers_ShouldReturnListOfTickers_WhenCacheIsEmpty()
     {
-        // Arrange
-        var data = LoadTestData();
+        var controller = SetupController(cachedTickers: null);
 
-        var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(data);
-
-        // Mock the cache to return null, simulating no cached data
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(c => c.GetAllTickersAsync()).ReturnsAsync((List<string>?)null);        
-        
-        var controller = new StockController(mockService.Object, mockCache.Object);
-       
-        // Act
         var result = await controller.GetAllTickers() as OkObjectResult;
 
-        // Assert
         var tickers = Assert.IsType<List<string>>(result?.Value);
-        Assert.Contains("AAPL", tickers);
+        Assert.Contains(Aapl, tickers);
         Assert.Contains("MSFT", tickers);
         Assert.Contains("GOOGL", tickers);
         Assert.Equal(3, tickers.Count);
     }
 
     [Fact]
-    public async void GetTickerDetails_ShouldReturnCorrectDetailsForAAPL()
+    public async Task GetAllTickers_ShouldReturnListOfTickers_FromCache()
     {
-        // Arrange
-        var data = LoadTestData();
+        var controller = SetupController(cachedTickers: new List<string> { Aapl, "MSFT", "GOOGL" });
 
-        var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(data);
+        var result = await controller.GetAllTickers() as OkObjectResult;
 
-        // Mock the cache to return null, simulating no cached data
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null); 
+        var tickers = Assert.IsType<List<string>>(result?.Value);
+        Assert.Equal(3, tickers.Count);
+    }
 
-        var controller = new StockController(mockService.Object, mockCache.Object);
+    [Fact]
+    public async Task GetTickerDetails_ShouldReturnCorrectDetails()
+    {
+        var controller = SetupController();
 
-        // Act
-        var result = await controller.GetTickerDetails("AAPL") as OkObjectResult;
-
-        // Assert
+        var result = await controller.GetTickerDetails(Aapl) as OkObjectResult;
         var stock = Assert.IsType<StockData>(result?.Value);
-     
-        Assert.NotNull(stock);
-        Assert.Equal("AAPL", stock.Ticker);
+
+        Assert.Equal(Aapl, stock.Ticker);
         Assert.Equal(198.15m, stock.Open);
         Assert.Equal(202.30m, stock.Close);
     }
 
     [Fact]
-    public async void GetBuyingOption_ShouldReturnNumberOfSharesForBudget()
+    public async Task GetTickerDetails_ShouldReturnNotFound_WhenTickerDoesNotExist()
     {
-        // Arrange
-        var data = LoadTestData();
-        var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(data);
-        
-        // Mock the cache to return null, simulating no cached data
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null);
+        var controller = SetupController();
 
-        var controller = new StockController(mockService.Object, mockCache.Object);
+        var result = await controller.GetTickerDetails("UnknownTicker");
 
-        // Act
-        var result = await controller.GetBuyingOption("AAPL", 1000) as OkObjectResult;
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Ticker 'UnknownTicker' not found.", notFound.Value);
+    }
 
-        // Assert
+    [Fact]
+    public async Task GetBuyingOption_ShouldReturnCorrectShareCount()
+    {
+        var controller = SetupController();
+
+        var result = await controller.GetBuyingOption(Aapl, 1000) as OkObjectResult;
+
         Assert.NotNull(result);
 
-        var json = JsonSerializer.Serialize(result?.Value);
-        var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        var json = JsonSerializer.Serialize(result.Value);
+        var parsed = JsonSerializer.Deserialize<JsonNode>(json);
 
-        Assert.Equal("AAPL", parsed["Ticker"].GetString());
-        Assert.Equal(1000m, parsed["Budget"].GetDecimal());
-        Assert.Equal(4, parsed["Shares"].GetInt32()); // 1000 / 202.30 ≈ 4
+        Assert.Equal(Aapl, parsed?["Ticker"]?.ToString());
+        Assert.Equal("1000", parsed?["Budget"]?.ToString());
+        Assert.Equal("4", parsed?["Shares"]?.ToString());
     }
 
-    // Test to ensure that GetAllTickers returns cached data if available
     [Fact]
-    public async void GetAllTickers_ShouldReturnListOfTickers_from_Cache()
+    public async Task GetBuyingOption_ShouldReturnNotFound_WhenTickerDoesNotExist()
     {
-        // Arrange
-        var data = LoadTestData();
+        var controller = SetupController();
 
-        var mockService = new Mock<IStockDataService>();
+        var result = await controller.GetBuyingOption("XYZ", 1000);
 
-        var cachedTickers = new List<string> { "AAPL", "MSFT", "GOOGL" };
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(c => c.GetAllTickersAsync()).ReturnsAsync(cachedTickers);
-
-        var controller = new StockController(mockService.Object, mockCache.Object);
-
-        // Act
-        var result = await controller.GetAllTickers() as OkObjectResult;
-
-        // Assert
-        var tickers = Assert.IsType<List<string>>(result?.Value);
-        Assert.Contains("AAPL", tickers);
-        Assert.Contains("MSFT", tickers);
-        Assert.Contains("GOOGL", tickers);
-        Assert.Equal(3, tickers.Count);
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal("Ticker 'XYZ' not found.", notFound.Value);
     }
 
-    // Test to ensure that GetTickerDetails returns NotFound when ticker does not exist
-    [Fact]
-    public async Task GetTickerDetails_ShouldReturnNotFound_WhenTickerNotExists()
-    {
-        // Arrange        
-        var data = LoadTestData();
-
-        var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(data);
-
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null);
-
-        var controller = new StockController(mockService.Object, mockCache.Object);
-
-        // Act
-        var result = await controller.GetTickerDetails("NoTickerName");
-
-        // Assert
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Ticker 'NoTickerName' not found.", notFoundResult.Value);
-    }
-
-    // Test to ensure that GetBuyingOption returns NotFound when ticker does not exist
-    [Fact]
-    public async Task GetBuyingOption_ShouldReturnNotFound_WhenTickerNotExists()
-    {
-        // Arrange
-        var data = LoadTestData();
-
-        var mockService = new Mock<IStockDataService>();
-        mockService.Setup(s => s.GetAll()).Returns(data);
-
-        var mockCache = new Mock<IStockCacheService>();
-        mockCache.Setup(s => s.GetStockAsync(It.IsAny<string>())).ReturnsAsync((StockData?)null);
-
-        var controller = new StockController(mockService.Object, mockCache.Object);
-
-        // Act
-        var result = await controller.GetBuyingOption("NoTickerName", 1000);
-
-        // Assert
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Ticker 'NoTickerName' not found.", notFoundResult.Value);
-    }
-
-    // Test to ensure that GetBuyingOption returns BadRequest when budget is zero or negative
     [Theory]
     [InlineData(0)]
     [InlineData(-100)]
-    public async Task GetBuyingOption_ShouldReturnBadRequest_WhenBudgetIsZeroOrNegative(decimal invalidBudget)
+    public async Task GetBuyingOption_ShouldReturnBadRequest_WhenBudgetInvalid(decimal budget)
     {
-        // Arrange
-        var mockService = new Mock<IStockDataService>();
-        var mockCache = new Mock<IStockCacheService>();
+        var controller = SetupController();
 
-        var controller = new StockController(mockService.Object, mockCache.Object);
+        var result = await controller.GetBuyingOption(Aapl, budget);
 
-        // Act
-        var result = await controller.GetBuyingOption("AAPL", invalidBudget);
-
-        // Assert
-        var badRequestResult = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Budget must be greater than zero.", badRequestResult.Value);
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Budget must be greater than zero.", badRequest.Value);
     }
 }
