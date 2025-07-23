@@ -3,13 +3,13 @@ using StockApi.Models;
 using StockApi.StockDataService.Cache;
 using System.Text.Json;
 
-public class StockCacheService : IStockCacheService
+public class RedisStockCacheService : IStockCacheService
 {
     private readonly IDistributedCache _cache;
     private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
     private static readonly DistributedCacheEntryOptions _distributedCacheEntryOptions = new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) };
 
-    public StockCacheService(IDistributedCache cache)
+    public RedisStockCacheService(IDistributedCache cache)
     {
         _cache = cache;
     }

@@ -20,7 +20,7 @@ namespace StockApi.StockDataService.Cache
             {
                 //  Redis availability check
                 await redis.SetStringAsync("ping:test", "1", new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5) });
-                return new StockCacheService(redis);
+                return new RedisStockCacheService(redis);
             }
             catch (Exception ex)
             {

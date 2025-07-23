@@ -63,7 +63,7 @@ namespace StockApi.Tests
             var result = await factory.CreateAsync();
 
             // Assert
-            Assert.IsType<StockCacheService>(result);
+            Assert.IsType<RedisStockCacheService>(result);
         }
     }
 }
