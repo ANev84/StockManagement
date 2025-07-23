@@ -22,7 +22,7 @@ public class StockController : ControllerBase
     }
 
     [HttpGet("tickers")]
-    public virtual async Task<IActionResult> GetAllTickers()
+    public async Task<IActionResult> GetAllTickers()
     {
         var tickers = await _stockCache.GetAllTickersAsync();
         if (tickers == null)
