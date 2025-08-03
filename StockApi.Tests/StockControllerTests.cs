@@ -49,7 +49,7 @@ public class StockControllerTests
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_WhenCacheIsEmpty()
     {
-        SetupController(cachedTickers: null); // переопределяем при необходимости
+        SetupController(cachedTickers: null); // redefine
 
         var result = await _controller.GetAllTickers() as OkObjectResult;
 
@@ -81,7 +81,7 @@ public class StockControllerTests
     [InlineData("UnknownTicket", false)]
     public async Task GetTickerDetails_ShouldReturnCorrectDetails_or_ShouldReturnNotFound_WhenTickerDoesNotExist(string ticket, bool isExist)
     {
-        // Используется стандартный _controller
+        // The standard _controller is used
         var result = await _controller.GetTickerDetails(ticket);
 
         if (isExist)
