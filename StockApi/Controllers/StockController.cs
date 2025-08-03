@@ -27,11 +27,7 @@ public class StockController : ControllerBase
         var tickers = await _stockCache.GetAllTickersAsync();
         if (tickers == null)
         {
-            tickers = _stockService
-                .GetAll()
-                .Select(s => s.Ticker)
-                .Distinct()
-                .ToList();
+            tickers = _stockService.GetAll();
 
             await _stockCache.SetAllTickersAsync(tickers);
         }
@@ -78,7 +74,7 @@ public class StockController : ControllerBase
         if (cached != null)
             return cached;
 
-        var data = _stockService.GetAll();
+        List<StockData> data = _stockService.GetAll();
         if (data == null || !data.Any())
             return null;
 

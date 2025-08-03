@@ -6,7 +6,7 @@ namespace StockApi.StockDataService.Cache
     {
         Task<StockData?> GetStockAsync(string ticker);
         Task SetStockAsync(string ticker, StockData data);
-        Task<List<string>?> GetAllTickersAsync();
-        Task SetAllTickersAsync(List<string> tickers);
+        Task<List<StockData>?> GetAllTickersAsync();
+        Task SetAllTickersAsync(List<StockData> tickers);
     }
 }

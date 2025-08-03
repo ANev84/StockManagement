@@ -1,11 +1,12 @@
 ﻿using StockApi.Models;
+using System.Collections.Concurrent;
 
 namespace StockApi.StockDataService.Cache
 {
     public class InMemoryStockCacheService : IStockCacheService
     {
-        private readonly Dictionary<string, StockData> _stockCache = new();
-        private List<string>? _tickersCache;
+        private readonly ConcurrentDictionary<string, StockData> _stockCache = new();
+        private List<StockData>? _tickersCache;
 
         public Task<StockData?> GetStockAsync(string ticker)
         {
@@ -19,14 +20,14 @@ namespace StockApi.StockDataService.Cache
             return Task.CompletedTask;
         }
 
-        public Task<List<string>?> GetAllTickersAsync()
+        public Task<List<StockData>?> GetAllTickersAsync()
         {
             return Task.FromResult(_tickersCache);
         }
 
-        public Task SetAllTickersAsync(List<string> tickers)
+        public Task SetAllTickersAsync(List<StockData> tickers)
         {
-            _tickersCache = tickers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            _tickersCache = tickers;
             return Task.CompletedTask;
         }
     }

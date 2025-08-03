@@ -30,7 +30,7 @@ public class StockControllerTests
     // Setup the controller with mock services
     private StockController SetupController(
         List<StockData>? data = null,
-        List<string>? cachedTickers = null,
+        List<StockData>? cachedTickers = null,
         StockData? cachedStock = null)
     {
         var mockService = new Mock<IStockDataService>();
@@ -51,10 +51,11 @@ public class StockControllerTests
 
         var result = await controller.GetAllTickers() as OkObjectResult;
 
-        var tickers = Assert.IsType<List<string>>(result?.Value);
-        Assert.Contains(Aapl, tickers);
-        Assert.Contains("MSFT", tickers);
-        Assert.Contains("GOOGL", tickers);
+        var tickers = Assert.IsType<List<StockData>>(result?.Value);
+
+        Assert.Contains(tickers, t => t.Ticker == Aapl);
+        Assert.Contains(tickers, t => t.Ticker == "MSFT");
+        Assert.Contains(tickers, t => t.Ticker == "GOOGL");
         Assert.Equal(3, tickers.Count);
     }
 
@@ -62,11 +63,16 @@ public class StockControllerTests
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_FromCache()
     {
-        var controller = SetupController(cachedTickers: new List<string> { Aapl, "MSFT", "GOOGL" });
+        var controller = SetupController(cachedTickers: new List<StockData>
+        {
+            new StockData { Ticker = Aapl },
+            new StockData { Ticker = "MSFT" },
+            new StockData { Ticker = "GOOGL" }
+        });       
 
         var result = await controller.GetAllTickers() as OkObjectResult;
 
-        var tickers = Assert.IsType<List<string>>(result?.Value);
+        var tickers = Assert.IsType<List<StockData>>(result?.Value);
         Assert.Equal(3, tickers.Count);
     }
 

@@ -26,13 +26,13 @@ public class RedisStockCacheService : IStockCacheService
         await _cache.SetStringAsync($"stock:{ticker}:details", json, _distributedCacheEntryOptions);
     }
 
-    public async Task<List<string>?> GetAllTickersAsync()
+    public async Task<List<StockData>?> GetAllTickersAsync()
     {
         var json = await _cache.GetStringAsync("stock:tickers");
-        return json == null ? null : JsonSerializer.Deserialize<List<string>>(json, _jsonOptions);
+        return json == null ? null : JsonSerializer.Deserialize<List<StockData>>(json, _jsonOptions);
     }
 
-    public async Task SetAllTickersAsync(List<string> tickers)
+    public async Task SetAllTickersAsync(List<StockData> tickers)
     {
         var json = JsonSerializer.Serialize(tickers);
         await _cache.SetStringAsync("stock:tickers", json, _distributedCacheEntryOptions);
