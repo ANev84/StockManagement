@@ -19,9 +19,12 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.InstanceName = "StockApi_";
 });
 
+builder.Services.Configure<CacheSettings>(builder.Configuration.GetSection("CacheSettings"));
+
 // Temporary provider
 builder.Services.AddSingleton<InMemoryStockCacheService>();
 builder.Services.AddSingleton<CacheServiceFactory>();
+
 
 // IStockCacheService created through a factory
 builder.Services.AddSingleton(sp =>

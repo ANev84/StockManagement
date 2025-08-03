@@ -1,32 +1,46 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 
 namespace StockApi.StockDataService.Cache
 {
     public class CacheServiceFactory
     {
         private readonly IServiceProvider _provider;
+        private readonly CacheSettings _settings;
 
-        public CacheServiceFactory(IServiceProvider provider)
+        public CacheServiceFactory(IServiceProvider provider, IOptions<CacheSettings> settings)
         {
             _provider = provider;
+            _settings = settings.Value;
         }
 
         public async Task<IStockCacheService> CreateAsync()
         {
             var logger = _provider.GetRequiredService<ILogger<CacheServiceFactory>>();
-            var redis = _provider.GetRequiredService<IDistributedCache>();
 
-            try
+            if (_settings.Type.Equals("Redis", StringComparison.OrdinalIgnoreCase))
             {
-                //  Redis availability check
-                await redis.SetStringAsync("ping:test", "1", new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5) });
+                var redis = _provider.GetRequiredService<IDistributedCache>();
+
+                // Optional: try a ping test if needed (but no try/catch fallback)
+                try
+                {
+                    await redis.SetStringAsync("ping:test", "1", new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5)
+                    });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Redis selected but unavailable.");
+                    throw; // or return fallback, depending on design
+                }
+
                 return new RedisStockCacheService(redis);
             }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Redis unavailable. Falling back to InMemory cache.");
-                return new InMemoryStockCacheService();
-            }
+
+            logger.LogInformation("Using InMemory cache as configured.");
+            return new InMemoryStockCacheService();
         }
     }
 }

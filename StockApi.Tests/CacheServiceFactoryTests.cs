@@ -1,69 +1,86 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using StockApi.StockDataService.Cache;
+using System;
+using System.Threading.Tasks;
+using Xunit;
 
-namespace StockApi.Tests
+public class CacheServiceFactoryTests
 {
-    public class CacheServiceFactoryTests
+    [Fact]
+    public async Task CreateAsync_ShouldReturnRedisCacheService_WhenTypeIsRedis_AndRedisIsAvailable()
     {
-        [Fact]
-        public async Task CreateAsync_ShouldReturnInMemoryStockCacheService_WhenRedisFails()
-        {
-            // Arrange
-            var mockRedis = new Mock<IDistributedCache>();
-            mockRedis
-                .Setup(r => r.SetAsync(
-                    It.IsAny<string>(),
-                    It.IsAny<byte[]>(),
-                    It.IsAny<DistributedCacheEntryOptions>(),
-                    It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new Exception("Redis is down"));
+        // Arrange
+        var redisMock = new Mock<IDistributedCache>();
+        redisMock.Setup(r => r.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<byte[]>(),
+                It.IsAny<DistributedCacheEntryOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
-            var mockLogger = new Mock<ILogger<CacheServiceFactory>>();
+        var services = new ServiceCollection();
+        services.AddSingleton(redisMock.Object);
+        services.AddLogging(); // adds ILogger<T>
+        var serviceProvider = services.BuildServiceProvider();
 
-            var serviceCollection = new ServiceCollection();
-            serviceCollection.AddSingleton(mockRedis.Object);
-            serviceCollection.AddSingleton(mockLogger.Object);
-            var serviceProvider = serviceCollection.BuildServiceProvider();
+        var settings = Options.Create(new CacheSettings { Type = "Redis" });
+        var factory = new CacheServiceFactory(serviceProvider, settings);
 
-            var factory = new CacheServiceFactory(serviceProvider);
+        // Act
+        var result = await factory.CreateAsync();
 
-            // Act
-            var result = await factory.CreateAsync();
+        // Assert
+        Assert.IsType<RedisStockCacheService>(result);
+    }
 
-            // Assert
-            Assert.IsType<InMemoryStockCacheService>(result);
-        }
 
-        [Fact]
-        public async Task CreateAsync_ShouldReturnStockCacheService_WhenRedisIsAvailable()
-        {
-            // Arrange
-            var mockRedis = new Mock<IDistributedCache>();
-            mockRedis
-                .Setup(r => r.SetAsync(
-                    It.IsAny<string>(),
-                    It.IsAny<byte[]>(),
-                    It.IsAny<DistributedCacheEntryOptions>(),
-                    It.IsAny<CancellationToken>()))
-                .Returns(Task.CompletedTask);
+    [Fact]
+    public async Task CreateAsync_ShouldThrowException_WhenRedisFails()
+    {
+        // Arrange
+        var redisMock = new Mock<IDistributedCache>();
+        redisMock.Setup(r => r.SetAsync(
+                It.IsAny<string>(),
+                It.IsAny<byte[]>(),
+                It.IsAny<DistributedCacheEntryOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Redis is down"));
 
-            var mockLogger = new Mock<ILogger<CacheServiceFactory>>();
+        var loggerMock = new Mock<ILogger<CacheServiceFactory>>();
 
-            var services = new ServiceCollection();
-            services.AddSingleton(mockRedis.Object);
-            services.AddSingleton(mockLogger.Object);
-            var provider = services.BuildServiceProvider();
+        var services = new ServiceCollection();
+        services.AddSingleton(redisMock.Object);
+        services.AddSingleton(typeof(ILogger<CacheServiceFactory>), loggerMock.Object);
+        var serviceProvider = services.BuildServiceProvider();
 
-            var factory = new CacheServiceFactory(provider);
+        var settings = Options.Create(new CacheSettings { Type = "Redis" });
+        var factory = new CacheServiceFactory(serviceProvider, settings);
 
-            // Act
-            var result = await factory.CreateAsync();
+        // Act & Assert
+        await Assert.ThrowsAsync<Exception>(factory.CreateAsync);
+    }
 
-            // Assert
-            Assert.IsType<RedisStockCacheService>(result);
-        }
+    [Fact]
+    public async Task CreateAsync_ShouldReturnInMemoryCacheService_WhenTypeIsNotRedis()
+    {
+        // Arrange
+        var loggerMock = new Mock<ILogger<CacheServiceFactory>>();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<CacheServiceFactory>), loggerMock.Object);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var settings = Options.Create(new CacheSettings { Type = "Memory" });
+        var factory = new CacheServiceFactory(serviceProvider, settings);
+
+        // Act
+        var result = await factory.CreateAsync();
+
+        // Assert
+        Assert.IsType<InMemoryStockCacheService>(result);
     }
 }
