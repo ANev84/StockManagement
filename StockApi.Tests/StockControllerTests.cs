@@ -65,9 +65,9 @@ public class StockControllerTests
     {
         var controller = SetupController(cachedTickers: new List<StockData>
         {
-            new StockData { Ticker = Aapl },
-            new StockData { Ticker = "MSFT" },
-            new StockData { Ticker = "GOOGL" }
+           new StockData("AAPL", DateTime.Today, 0, 0, 0, 0, 0),
+           new StockData("MSFT", DateTime.Today, 0, 0, 0, 0, 0),
+           new StockData("GOOGL", DateTime.Today, 0, 0, 0, 0, 0)
         });       
 
         var result = await controller.GetAllTickers() as OkObjectResult;
