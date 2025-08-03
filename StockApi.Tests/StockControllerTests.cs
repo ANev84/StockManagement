@@ -76,61 +76,62 @@ public class StockControllerTests
         Assert.Equal(3, tickers.Count);
     }
 
-    // Test to ensure that the controller returns ticker details correctly
-    [Fact]
-    public async Task GetTickerDetails_ShouldReturnCorrectDetails()
-    {
-        var controller = SetupController();
-
-        var result = await controller.GetTickerDetails(Aapl) as OkObjectResult;
-        var stock = Assert.IsType<StockData>(result?.Value);
-
-        Assert.Equal(Aapl, stock.Ticker);
-        Assert.Equal(198.15m, stock.Open);
-        Assert.Equal(202.30m, stock.Close);
-    }
-
     // Test to ensure that the controller returns NotFound when ticker does not exist
-    [Fact]
-    public async Task GetTickerDetails_ShouldReturnNotFound_WhenTickerDoesNotExist()
+    [Theory]
+    [InlineData(Aapl, true)]
+    [InlineData("UnknownTicket", false)]
+    public async Task GetTickerDetails_ShouldReturnCorrectDetails_or_ShouldReturnNotFound_WhenTickerDoesNotExist(string ticket, bool isExist)
     {
         var controller = SetupController();
 
-        var result = await controller.GetTickerDetails("UnknownTicker");
+        var result = await controller.GetTickerDetails(ticket);
 
-        var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Ticker 'UnknownTicker' not found.", notFound.Value);
+        if (isExist)
+        {
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var stock = Assert.IsType<StockData>(okResult?.Value);
+
+            Assert.Equal(Aapl, stock.Ticker);
+            Assert.Equal(198.15m, stock.Open);
+            Assert.Equal(202.30m, stock.Close);
+        }
+        else
+        {
+            var notFound = Assert.IsType<NotFoundObjectResult>(result);
+            Assert.Equal($"Ticker '{ticket}' not found.", notFound.Value);
+        }       
     }
     
-    // Test to ensure that the controller returns buying option with correct share count
-    [Fact]
-    public async Task GetBuyingOption_ShouldReturnCorrectShareCount()
+    
+    [Theory]
+    [InlineData(Aapl, true)]
+    [InlineData("UnknownTicket", false)]
+    // Test to ensure that the controller returns NotFound when ticker does not exist for buying option   
+    public async Task GetBuyingOption_ReturnCorrectShareCount_or_ShouldReturnNotFound_WhenTickerDoesNotExist(string ticket, bool isExist)
     {
-        var controller = SetupController();
+        var controller = SetupController(); // должен вернуть контроллер с нужными cachedTickers
 
-        var result = await controller.GetBuyingOption(Aapl, 1000) as OkObjectResult;
+        var result = await controller.GetBuyingOption(ticket, 1000);
 
-        Assert.NotNull(result);
+        if (isExist)
+        {            
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            Assert.NotNull(okResult.Value);
 
-        var json = JsonSerializer.Serialize(result.Value);
-        var parsed = JsonSerializer.Deserialize<JsonNode>(json);
+                     var json = JsonSerializer.Serialize(okResult.Value);
+            var parsed = JsonSerializer.Deserialize<JsonNode>(json);
 
-        Assert.Equal(Aapl, parsed?["Ticker"]?.ToString());
-        Assert.Equal("1000", parsed?["Budget"]?.ToString());
-        Assert.Equal("4", parsed?["Shares"]?.ToString());
+            Assert.Equal("AAPL", parsed?["Ticker"]?.ToString());
+            Assert.Equal("1000", parsed?["Budget"]?.ToString());
+            Assert.Equal("4", parsed?["Shares"]?.ToString());
+        }
+        else
+        {
+            var notFound = Assert.IsType<NotFoundObjectResult>(result);
+            Assert.Equal($"Ticker '{ticket}' not found.", notFound.Value);
+        }
     }
 
-    // Test to ensure that the controller returns NotFound when ticker does not exist for buying option
-    [Fact]
-    public async Task GetBuyingOption_ShouldReturnNotFound_WhenTickerDoesNotExist()
-    {
-        var controller = SetupController();
-
-        var result = await controller.GetBuyingOption("XYZ", 1000);
-
-        var notFound = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Ticker 'XYZ' not found.", notFound.Value);
-    }
 
     // Test to ensure that the controller returns BadRequest when budget is invalid
     [Theory]
