@@ -12,11 +12,14 @@ public class StockControllerTests
 {
     private const string Aapl = "AAPL";
     private readonly List<StockData> _testData;
+    private StockController _controller;
 
     public StockControllerTests()
     {
         _testData = LoadTestData();
+        SetupController();
     }
+
     // Load test data from a JSON file
     private List<StockData> LoadTestData()
     {
@@ -27,8 +30,8 @@ public class StockControllerTests
         }) ?? throw new InvalidOperationException("Test data file 'test_stocks.json' could not be loaded.");
     }
 
-    // Setup the controller with mock services
-    private StockController SetupController(
+    // Default setup for the controller
+    private void SetupController(
         List<StockData>? data = null,
         List<StockData>? cachedTickers = null,
         StockData? cachedStock = null)
@@ -40,51 +43,46 @@ public class StockControllerTests
         mockCache.Setup(c => c.GetAllTickersAsync()).ReturnsAsync(cachedTickers);
         mockCache.Setup(c => c.GetStockAsync(It.IsAny<string>())).ReturnsAsync(cachedStock);
 
-        return new StockController(mockService.Object, mockCache.Object);
+        _controller = new StockController(mockService.Object, mockCache.Object);
     }
 
-    // Tests for the StockController
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_WhenCacheIsEmpty()
     {
-        var controller = SetupController(cachedTickers: null);
+        SetupController(cachedTickers: null); // переопределяем при необходимости
 
-        var result = await controller.GetAllTickers() as OkObjectResult;
+        var result = await _controller.GetAllTickers() as OkObjectResult;
 
         var tickers = Assert.IsType<List<StockData>>(result?.Value);
-
         Assert.Contains(tickers, t => t.Ticker == Aapl);
         Assert.Contains(tickers, t => t.Ticker == "MSFT");
         Assert.Contains(tickers, t => t.Ticker == "GOOGL");
         Assert.Equal(3, tickers.Count);
     }
 
-    // Test to ensure that the controller returns tickers from cache if available
     [Fact]
     public async Task GetAllTickers_ShouldReturnListOfTickers_FromCache()
     {
-        var controller = SetupController(cachedTickers: new List<StockData>
+        SetupController(cachedTickers: new List<StockData>
         {
-           new StockData("AAPL", DateTime.Today, 0, 0, 0, 0, 0),
-           new StockData("MSFT", DateTime.Today, 0, 0, 0, 0, 0),
-           new StockData("GOOGL", DateTime.Today, 0, 0, 0, 0, 0)
-        });       
+            new StockData("AAPL", DateTime.Today, 0, 0, 0, 0, 0),
+            new StockData("MSFT", DateTime.Today, 0, 0, 0, 0, 0),
+            new StockData("GOOGL", DateTime.Today, 0, 0, 0, 0, 0)
+        });
 
-        var result = await controller.GetAllTickers() as OkObjectResult;
+        var result = await _controller.GetAllTickers() as OkObjectResult;
 
         var tickers = Assert.IsType<List<StockData>>(result?.Value);
         Assert.Equal(3, tickers.Count);
     }
 
-    // Test to ensure that the controller returns NotFound when ticker does not exist
     [Theory]
     [InlineData(Aapl, true)]
     [InlineData("UnknownTicket", false)]
     public async Task GetTickerDetails_ShouldReturnCorrectDetails_or_ShouldReturnNotFound_WhenTickerDoesNotExist(string ticket, bool isExist)
     {
-        var controller = SetupController();
-
-        var result = await controller.GetTickerDetails(ticket);
+        // Используется стандартный _controller
+        var result = await _controller.GetTickerDetails(ticket);
 
         if (isExist)
         {
@@ -99,26 +97,22 @@ public class StockControllerTests
         {
             var notFound = Assert.IsType<NotFoundObjectResult>(result);
             Assert.Equal($"Ticker '{ticket}' not found.", notFound.Value);
-        }       
+        }
     }
-    
-    
+
     [Theory]
     [InlineData(Aapl, true)]
     [InlineData("UnknownTicket", false)]
-    // Test to ensure that the controller returns NotFound when ticker does not exist for buying option   
     public async Task GetBuyingOption_ReturnCorrectShareCount_or_ShouldReturnNotFound_WhenTickerDoesNotExist(string ticket, bool isExist)
     {
-        var controller = SetupController(); // должен вернуть контроллер с нужными cachedTickers
-
-        var result = await controller.GetBuyingOption(ticket, 1000);
+        var result = await _controller.GetBuyingOption(ticket, 1000);
 
         if (isExist)
-        {            
+        {
             var okResult = Assert.IsType<OkObjectResult>(result);
             Assert.NotNull(okResult.Value);
 
-                     var json = JsonSerializer.Serialize(okResult.Value);
+            var json = JsonSerializer.Serialize(okResult.Value);
             var parsed = JsonSerializer.Deserialize<JsonNode>(json);
 
             Assert.Equal("AAPL", parsed?["Ticker"]?.ToString());
@@ -132,16 +126,12 @@ public class StockControllerTests
         }
     }
 
-
-    // Test to ensure that the controller returns BadRequest when budget is invalid
     [Theory]
     [InlineData(0)]
     [InlineData(-100)]
     public async Task GetBuyingOption_ShouldReturnBadRequest_WhenBudgetInvalid(decimal budget)
     {
-        var controller = SetupController();
-
-        var result = await controller.GetBuyingOption(Aapl, budget);
+        var result = await _controller.GetBuyingOption(Aapl, budget);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal("Budget must be greater than zero.", badRequest.Value);
