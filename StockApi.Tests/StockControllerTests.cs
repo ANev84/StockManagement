@@ -17,7 +17,7 @@ public class StockControllerTests
     public StockControllerTests()
     {
         _testData = LoadTestData();
-        SetupController();
+        _controller = SetupController();
     }
 
     // Load test data from a JSON file
@@ -31,7 +31,7 @@ public class StockControllerTests
     }
 
     // Default setup for the controller
-    private void SetupController(
+    private StockController SetupController(
         List<StockData>? data = null,
         List<StockData>? cachedTickers = null,
         StockData? cachedStock = null)
@@ -43,7 +43,9 @@ public class StockControllerTests
         mockCache.Setup(c => c.GetAllTickersAsync()).ReturnsAsync(cachedTickers);
         mockCache.Setup(c => c.GetStockAsync(It.IsAny<string>())).ReturnsAsync(cachedStock);
 
-        _controller = new StockController(mockService.Object, mockCache.Object);
+        var controller = new StockController(mockService.Object, mockCache.Object);
+
+        return controller;
     }
 
     [Fact]
